@@ -78,26 +78,28 @@ SCALE = 4
 
 # Naming convention for frame variables is {if}{rgb,yiq}_frame
 # i integer {0..255}; f float [0, 1); rgb or yiq color space
-valid, irgb_frame = vid.read()
-shape = iterate_pyramid(irgb_frame, -SCALE).shape
+valid, ibgr_frame = vid.read()
+import pdb;pdb.set_trace()
+shape = iterate_pyramid(ibgr_frame, -SCALE).shape
 logging.info('shape %s length %s', shape, length)
 logging.info('Start allocating..')
 stack = np.zeros(shape + (length,)) #create a 4-dim stack (x, y, color-channel, time index)
 logging.info('Allocated stack. Reading in video...')
 
 for i in range(length):
+    irgb_frame = ibgr_frame[:,:,::-1]
     frgb_frame = irgb_frame.astype('float') / 255
-    down3 = iterate_pyramid(frgb_frame, -SCALE)
-    fyiq_frame = frame_rgb2yiq(down3)
-    stack[:,:,:,i] = fyiq_frame
-    valid, irgb_frame = vid.read()
+    fyiq_frame = frame_rgb2yiq(frgb_frame)
+    down3 = iterate_pyramid(fyiq_frame, -SCALE)
+    stack[:,:,:,i] = down3
+    valid, ibgr_frame = vid.read()
     # readframe is at the end because we've already done a read to get the pre-alloc size.
     # the last read will return null (or not null if we truncate the vidstream) and will 
     # be thrown away - exactly what we want
 
 logging.info('Finished video read into stack. Performing bandpass filter...')
 # 2. Perform the bandpass filter on it
-sampling_rate = 30
+sampling_rate = fps
 low_freq = 5./6
 hi_freq = 1.
 
@@ -125,16 +127,18 @@ logging.info('Begin writing out...')
 vidout = cv2.VideoWriter(os.path.join(dataout, 'face.avi'), 
         cv2.cv.CV_FOURCC(*'DIVX'), int(fps), (width, height))
 for i in range(length):
-    valid, irgb_frame = vid.read()
+    valid, ibgr_frame = vid.read()
+    irgb_frame = ibgr_frame[:,:,::-1]
     frgb_frame = irgb_frame.astype('float') / 255
     fyiq_frame = frame_rgb2yiq(frgb_frame)
     attenuated_full_frame = cv2.resize(filtered_stack[:,:,:,i], (width, height))
-    # TODO check the dtype, namespace of this calculation..
     result_frame = fyiq_frame + attenuated_full_frame
     result_frame[result_frame > 1] = 1
     result_frame[result_frame < 0] = 0
+    result_frame = fyiq_frame
     frgb_resultframe = frame_yiq2rgb(result_frame)
     irgb_resultframe = (frgb_resultframe * 255).astype('uint8')
-    vidout.write(irgb_resultframe)
+    ibgr_resultframe = irgb_resultframe[:,:,::-1]
+    vidout.write(ibgr_resultframe)
 
 logging.info('Analysis complete.')

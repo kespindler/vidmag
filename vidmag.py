@@ -129,7 +129,6 @@ logging.info('Begin writing out...')
 vidout = cv2.VideoWriter(os.path.join(dataout, 'face.avi'), 
         cv2.cv.CV_FOURCC(*'DIVX'), int(fps), (width, height))
 
-import pdb;pdb.set_trace()
 for i in range(length):
     valid, ibgr_frame = vid.read() # read in as int bgr frame. good.
     irgb_frame = ibgr_frame[:,:,::-1] # make an rgb frame, okay.
@@ -137,10 +136,10 @@ for i in range(length):
     fyiq_frame = frame_rgb2yiq(frgb_frame)
     attenuated_full_frame = cv2.resize(filtered_stack[:,:,:,i], (width, height))
     result_frame = fyiq_frame + attenuated_full_frame
-    result_frame[result_frame > 1] = 1
-    result_frame[result_frame < 0] = 0
     #result_frame = fyiq_frame
     frgb_resultframe = frame_yiq2rgb(result_frame)
+    frgb_resultframe[frgb_resultframe > 1] = 1
+    frgb_resultframe[frgb_resultframe < 0] = 0
     irgb_resultframe = (frgb_resultframe * 255).astype('uint8')
     ibgr_resultframe = irgb_resultframe[:,:,::-1]
     vidout.write(ibgr_resultframe)

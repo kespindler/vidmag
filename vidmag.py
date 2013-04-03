@@ -79,7 +79,6 @@ SCALE = 4
 # Naming convention for frame variables is {if}{rgb,yiq}_frame
 # i integer {0..255}; f float [0, 1); rgb or yiq color space
 valid, ibgr_frame = vid.read()
-import pdb;pdb.set_trace()
 shape = iterate_pyramid(ibgr_frame, -SCALE).shape
 logging.info('shape %s length %s', shape, length)
 logging.info('Start allocating..')
@@ -108,8 +107,11 @@ logging.info('Starting FFT of stack...')
 F = np.fft.fft(stack) # F is complex-valued
 logging.info('FFT of stack complete.')
 
-mask = np.logical_and(low_freq < freq, freq < hi_freq)
+#mask = np.logical_and(low_freq < freq, freq < hi_freq)
+#the bool vals of the mask are (pass = False, stop = True) because we set F to 0 when mask is true.
+mask = np.logical_or(freq < low_freq, freq > hi_freq) 
 F[:,:,:,mask] = 0
+
 logging.info('FFT band-passed. Now compute the inverse...')
 filtered_stack = np.real(np.fft.ifft(F))
 logging.info('Inverse complete')
@@ -117,8 +119,8 @@ logging.info('Inverse complete')
 # 3. Do the attenuation
 alpha = 50
 chrom_atten = 1
-filtered_stack[:,:,:,0] *= alpha
-filtered_stack[:,:,:,1:3] *= alpha * chrom_atten
+filtered_stack[:,:,0,:] *= alpha
+filtered_stack[:,:,1:3,:] *= alpha * chrom_atten
 
 # 5. Write the attenuated signal out
 
@@ -126,16 +128,18 @@ vid.set(1, 0) # seek back to the first frame
 logging.info('Begin writing out...')
 vidout = cv2.VideoWriter(os.path.join(dataout, 'face.avi'), 
         cv2.cv.CV_FOURCC(*'DIVX'), int(fps), (width, height))
+
+import pdb;pdb.set_trace()
 for i in range(length):
-    valid, ibgr_frame = vid.read()
-    irgb_frame = ibgr_frame[:,:,::-1]
-    frgb_frame = irgb_frame.astype('float') / 255
+    valid, ibgr_frame = vid.read() # read in as int bgr frame. good.
+    irgb_frame = ibgr_frame[:,:,::-1] # make an rgb frame, okay.
+    frgb_frame = irgb_frame.astype('float') / 255 # floatify it.
     fyiq_frame = frame_rgb2yiq(frgb_frame)
     attenuated_full_frame = cv2.resize(filtered_stack[:,:,:,i], (width, height))
     result_frame = fyiq_frame + attenuated_full_frame
     result_frame[result_frame > 1] = 1
     result_frame[result_frame < 0] = 0
-    result_frame = fyiq_frame
+    #result_frame = fyiq_frame
     frgb_resultframe = frame_yiq2rgb(result_frame)
     irgb_resultframe = (frgb_resultframe * 255).astype('uint8')
     ibgr_resultframe = irgb_resultframe[:,:,::-1]
